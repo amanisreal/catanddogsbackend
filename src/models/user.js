@@ -1,7 +1,8 @@
-
 const mongoose = require('mongoose');
 require('../mongoose')
 const validator = require('validator')
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
 
 const userSchema = new mongoose.Schema({
     name:{
@@ -17,6 +18,18 @@ const userSchema = new mongoose.Schema({
             }
         },
         required: true,
+        // validate:{
+        //     validator: async function(email){
+        //         const user = await User.findOne({email});
+        //         if(user){
+        //             if(this.user === user.id) return true;
+        //             return false;
+        //         }
+        //         return true;
+        //     },
+        //     message: props => 'This email is already in use'
+        // },
+        unique: true,
     },
     password:{
         type:String,
@@ -28,7 +41,41 @@ const userSchema = new mongoose.Schema({
                 throw new Error('Password cant contain password')
             }
         }
+    },
+    age:{
+        type: Number,
+        default: 0,
+        validate(value){
+            if(value<0){
+                throw new Error('Age cant be negative')
+            }
+        }
+    },
+    tokens:[{
+        token:{
+            type:String,
+            required: true
+        }
+    }],
+}, {
+    timestamps: true
+})
+
+userSchema.methods.generateAuthtoken = async function(){
+    const user = this;
+    const token = await jwt.sign({_id: user._id.toString()}, 'catsanddogsmynewproject');
+    user.tokens = user.tokens.concat({token});
+    await user.save();
+    return token;
+}
+
+userSchema.pre('save', async function(next) {
+    const user = this;
+    console.log('just before saving')
+    if(user.isModified('password')){
+        user.password = await bcrypt.hash(user.password, 8);
     }
+    next();
 })
 
 const User = mongoose.model('Users', userSchema);
